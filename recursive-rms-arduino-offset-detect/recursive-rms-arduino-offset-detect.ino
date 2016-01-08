@@ -9,12 +9,12 @@
  * Digital filters  - https://www-users.cs.york.ac.uk/~fisher/mkfilter/
 */
 
-#define inPinI A7
+#define inPinI A0
 
-#define SupplyVoltage   3300.0F
+#define SupplyVoltage   5000.0F
 #define ADC_BITS        10
 #define ADC_COUNTS      (1<<ADC_BITS)
-#define VCAL            2490.88F
+#define VCAL            1.0F
 #define V_RATIO         VCAL * ((SupplyVoltage/1000.0F) / (ADC_COUNTS))
 
 #define N               50.0F
@@ -23,7 +23,7 @@
 
 
 
-#define STABILIZATION_TIME  7000
+#define STABILIZATION_TIME  8000
 
 #define BUFFER_SIZE     300
 
@@ -124,7 +124,7 @@ void loop()
    {
       
       //mbuffer[samplepos] = sampleV;
-      //mbuffer[samplepos] = yv_hp_v[1];
+      //mbuffer[samplepos] = offsetV;
       //mbuffer[samplepos] = rmsOut[1];
       mbuffer[samplepos] = Vrms;
       
