@@ -14,7 +14,7 @@
 #define SupplyVoltage   5000.0F
 #define ADC_BITS        10
 #define ADC_COUNTS      (1<<ADC_BITS)
-#define VCAL            1.0F
+#define VCAL            266.32F
 #define V_RATIO         VCAL * ((SupplyVoltage/1000.0F) / (ADC_COUNTS))
 
 #define N               50.0F

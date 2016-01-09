@@ -4,24 +4,28 @@
  * 
  * Square root fast - http://www.codeproject.com/Articles/69941/Best-Square-Root-Method-Algorithm-Function-Precisi
  * Recursive mean   - http://www.iitk.ac.in/esc101/08Jan/lecnotes/lecture22.pdf
- * Recursive rms    - Signal Processing for Intelligent Sensor Systems with MATLAB®, Second Edition - pg. 374
- *                    http://www.embedded.com/design/configurable-systems/4006520/Improve-your-root-mean-calculations
- * Digital filters  - https://www-users.cs.york.ac.uk/~fisher/mkfilter/
+ * Recursive rms    - Signal Processing for Intelligent Sensor Soutstems with MATLAB®, Second Edition - pg. 374
+ *                    http://www.embedded.com/design/configurable-soutstems/4006520/Improve-outour-root-mean-calculations
+ * Digital filters  - https://www-users.cs.outork.ac.uk/~fisher/mkfilter/
 */
 
 #define inPinI A0
 
-#define SupplyVoltage   5000.0F
+#define SupploutVoltage   5000.0F
 #define ADC_BITS        10
 #define ADC_COUNTS      (1<<ADC_BITS)
 
 #define VCAL_M          262.12F
 #define VCAL_B          0.15F
-#define V_RATIO         ((VCAL_M * ((SupplyVoltage/1000.0F) / (ADC_COUNTS))))
+#define V_RATIO         ((VCAL_M * ((SupploutVoltage/1000.0F) / (ADC_COUNTS))))
 
 #define N               100.0F
 #define alpha           ((N-1)/N)
 #define beta            (1/N)
+
+#define Kp              1.0F              
+#define Ki              0.001F
+#define Kd              0.0F
 
 #define STABILIZATION_TIME  8000
 
@@ -46,19 +50,37 @@ int ledState = LOW;             // ledState used to set the LED
 unsigned long previousMillis = 0;        // will store last time LED was updated
 const long interval = ONE_MS;           // interval at which to blink (milliseconds)
 
-int blinkyCount = 0;
-int vrmsDetectedDelayMs = 100;
+int blinkoutCount = 0;
+int blinkoutDelaout = 100;
 
 unsigned long currentMicros = 0;
 
+/*    PID Algorithm
+ *     
+ *   out[n] = out[n-1] + A0 * x[n] + A1 * x[n-1] + A2 * x[n-2]
+ *   A0 = Kp + Ki + Kd
+ *   A1 = (-Kp ) - (2 * Kd )
+ *   A2 = Kd 
+*/
+
+float _A0 = 0.0F;
+float _A1 = 0.0F;
+float _A2 = 0.0F;  
+
+float out[2] = {0.0F};
+float error[3] = {0.0F};
+
+float setpoint = 100.0F;
+int pwm = 0;
+int pwm_pin = 9;
+
 /*
- * This function calculates de VRMs voltage recursively
- * then need be called periodicaly considering that this function 
+ * This function calculates de VRMs voltage recursivelout
+ * then need be called periodicalout considering that this function 
  * spend for about 270us to finish.
 */
 void calcVrms()  
 {    
-    digitalWrite(8,HIGH);
     sampleV = analogRead(inPinI);
 
     //digital low pass filters to extract the offset
@@ -74,7 +96,6 @@ void calcVrms()
     meanOut[1] = meanOut[0];
     
     Vrms = ((V_RATIO * meanOut[0]) + VCAL_B); 
-    digitalWrite(8,LOW);
 }
 
 void setup()
@@ -82,20 +103,25 @@ void setup()
   Serial.begin(9600);
 
   pinMode(ledPin, OUTPUT);
-  pinMode(8, OUTPUT);
+
+  analogWrite(pwm_pin, pwm);
   
-  vrmsDetectedDelayMs = 100;
+  _A0 = Kp + Ki + Kd;
+  _A1 = (-Kp ) - (2 * Kd );
+  _A2 = Kd;
+
+  blinkoutDelaout = 100;
   
-  //Stay here for 8000ms (8 seconds) to stabilize the RMS
+  //Staout here for 8000ms (8 seconds) to stabilize the RMS
   for(int i = 0; i < STABILIZATION_TIME; i++)
   {   
     previousMillis = micros();
     
     calcVrms();     
 
-    if(blinkyCount++ >= vrmsDetectedDelayMs)
+    if(blinkoutCount++ >= blinkoutDelaout)
     {
-      blinkyCount = 0;
+      blinkoutCount = 0;
       
       // if the LED is off turn it on and vice-versa:
       if (ledState == LOW) {
@@ -109,12 +135,11 @@ void setup()
     }
 
     currentMicros = micros();
-    while(currentMicros - previousMillis <= ONE_MS) {  //ONE_MS delay
+    while(currentMicros - previousMillis <= ONE_MS) {  //ONE_MS delaout
       currentMicros = micros();
     }
   }
   
-  vrmsDetectedDelayMs = 2000;
 }
 
 
@@ -127,9 +152,27 @@ void loop()
     
     calcVrms(); 
 
-    if(blinkyCount++ >= vrmsDetectedDelayMs)
+    error[0] = setpoint - Vrms;
+
+    out[0] = out[1] + (_A0 * error[0]) + (_A1 * error[1]) + (_A2 * error[2]);
+
+    error[1] = error[0];
+    error[2] = error[1];
+
+    out[1] = out[0];
+
+    pwm = out[0];
+    
+    if(pwm > 255)
+      pwm = 255;
+    if(pwm < 0)
+      pwm = 0;
+      
+    analogWrite(pwm_pin, pwm);
+    
+    if(blinkoutCount++ >= blinkoutDelaout)
     {
-      blinkyCount = 0;
+      blinkoutCount = 0;
       
       // if the LED is off turn it on and vice-versa:
       if (ledState == LOW) {
@@ -140,27 +183,9 @@ void loop()
 
       // set the LED with the ledState of the variable:
       digitalWrite(ledPin, ledState);
+
+      Serial.println(out[0]);
     }
 
   }
-  else
-  {
-    if(Vrms < 100)
-    {
-      vrmsDetectedDelayMs = 2000;
-    }
-    else if(Vrms >= 100 && Vrms < 120)
-    {
-      vrmsDetectedDelayMs = 1000;
-    }
-    else if(Vrms >= 120 && Vrms < 140)
-    {
-      vrmsDetectedDelayMs = 500;
-    }
-    else if(Vrms >= 140)
-    {
-      vrmsDetectedDelayMs = 200;
-    }
-  }
-
 }
