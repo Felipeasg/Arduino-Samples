@@ -19,17 +19,22 @@
 #define VCAL_B          0.15F
 #define V_RATIO         ((VCAL_M * ((SupploutVoltage/1000.0F) / (ADC_COUNTS))))
 
-#define N               100.0F
+#define N               130.0F
 #define alpha           ((N-1)/N)
 #define beta            (1/N)
 
-#define Kp              1.0F              
-#define Ki              0.001F
-#define Kd              0.0F
+//#define Kp              (2.2F)              
+//#define Ki              (0.008F)
+#define Kp              (2.8F)              
+#define Ki              (0.01F)
+#define Kd              (0.0F)
 
-#define STABILIZATION_TIME  8000
+#define STABILIZATION_TIME  2000
 
 #define ONE_MS     1000
+
+#define TIME_TO_SEND_DATA_MS  200
+
 
 float offsetV = 0.0;
 float filteredV = 0.0;
@@ -70,9 +75,13 @@ float _A2 = 0.0F;
 float out[2] = {0.0F};
 float error[3] = {0.0F};
 
-float setpoint = 100.0F;
+float setpoint = 210.0F;
 int pwm = 0;
 int pwm_pin = 9;
+
+int senddata = 0;
+
+const int buttonOn = 12;     // the number of the pushbutton pin
 
 /*
  * This function calculates de VRMs voltage recursivelout
@@ -104,15 +113,22 @@ void setup()
 
   pinMode(ledPin, OUTPUT);
 
+  pwm = 255;
+  
   analogWrite(pwm_pin, pwm);
+
+  // initialize the pushbutton pin as an input:
+  pinMode(buttonOn, INPUT);
   
   _A0 = Kp + Ki + Kd;
   _A1 = (-Kp ) - (2 * Kd );
   _A2 = Kd;
 
-  blinkoutDelaout = 100;
+  offsetV = ADC_COUNTS/2;
   
-  //Staout here for 8000ms (8 seconds) to stabilize the RMS
+  blinkoutDelaout = 50;
+  
+  //Staout here for 2000ms (8 seconds) to stabilize the RMS
   for(int i = 0; i < STABILIZATION_TIME; i++)
   {   
     previousMillis = micros();
@@ -139,7 +155,49 @@ void setup()
       currentMicros = micros();
     }
   }
-  
+
+
+  while(digitalRead(buttonOn) == HIGH) 
+  {
+    previousMillis = micros();
+    
+    calcVrms();     
+
+    if(blinkoutCount++ >= blinkoutDelaout)
+    {
+      blinkoutCount = 0;
+      
+      // if the LED is off turn it on and vice-versa:
+      if (ledState == LOW) {
+        ledState = HIGH;
+      } else {
+        ledState = LOW;
+      }      
+
+      // set the LED with the ledState of the variable:
+      digitalWrite(ledPin, ledState);
+    }
+
+    if(senddata++ > TIME_TO_SEND_DATA_MS)
+    {
+        senddata = 0;
+        Serial.print(error[0]);
+        Serial.print(" ");
+        Serial.print(out[0]);
+        Serial.print(" ");
+        Serial.print(Vrms);
+        Serial.print(" ");
+        Serial.println(pwm);
+    }
+    currentMicros = micros();
+    while(currentMicros - previousMillis <= ONE_MS) {  //ONE_MS delaout
+      currentMicros = micros();
+    }
+  }  
+
+  blinkoutDelaout = 200;
+
+
 }
 
 
@@ -161,14 +219,15 @@ void loop()
 
     out[1] = out[0];
 
-    pwm = out[0];
+    pwm = 255 + out[0];
     
     if(pwm > 255)
       pwm = 255;
     if(pwm < 0)
       pwm = 0;
-      
-    analogWrite(pwm_pin, pwm);
+
+    
+   analogWrite(pwm_pin, pwm);
     
     if(blinkoutCount++ >= blinkoutDelaout)
     {
@@ -183,9 +242,18 @@ void loop()
 
       // set the LED with the ledState of the variable:
       digitalWrite(ledPin, ledState);
-
-      Serial.println(out[0]);
     }
 
+    if(senddata++ > TIME_TO_SEND_DATA_MS)
+    {
+        senddata = 0;
+        Serial.print(error[0]);
+        Serial.print(" ");
+        Serial.print(out[0]);
+        Serial.print(" ");
+        Serial.print(Vrms);
+        Serial.print(" ");
+        Serial.println(pwm);
+    }
   }
 }
